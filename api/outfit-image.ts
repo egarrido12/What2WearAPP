@@ -4,7 +4,8 @@ import { readFile, stat } from 'node:fs/promises';
 import { GoogleGenAI, Modality } from '@google/genai';
 
 // ⚠️ En TS: SIN ".js"
-import { dataUrlToPart, approxBase64Bytes, handleImageResponse } from './_utils';
+import { dataUrlToPart, approxBase64Bytes, handleImageResponse } from './_utils.js';
+
 
 const MAX_BYTES = 4_500_000;
 const MAX_GARMENTS = 5;
