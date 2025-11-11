@@ -1,6 +1,6 @@
 // ...imports arriba...
 import { GoogleGenAI, Modality } from '@google/genai';
-import { dataUrlToPart, approxBase64Bytes, handleImageResponse } from './_utils.ts';
+import { dataUrlToPart, approxBase64Bytes, handleImageResponse } from './_utils.js';
 
 async function urlToPartServer(url: string) {
   const r = await fetch(url);

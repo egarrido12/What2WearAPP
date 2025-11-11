@@ -1,5 +1,5 @@
 import { GoogleGenAI, Modality } from '@google/genai';
-import { dataUrlToPart, approxBase64Bytes, handleImageResponse } from './_utils.ts';
+import { dataUrlToPart, approxBase64Bytes, handleImageResponse } from './_utils.js';
 
 
 const MAX_BYTES = 4_500_000; // baja si aún supera límite
