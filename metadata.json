@@ -1,0 +1,6 @@
+{
+  "name": "What2Wear AI Stylist",
+  "description": "Tu estilista personal con IA. Sube tu ropa y obtén recomendaciones de atuendos personalizados visualizados en tu propio modelo.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
