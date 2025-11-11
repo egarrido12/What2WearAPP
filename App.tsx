@@ -7,12 +7,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import StartScreen from './components/StartScreen';
 import Canvas from './components/Canvas';
 import ChatPanel from './components/ChatPanel';
-import { getOutfitRecommendation, generateOutfitImage } from './services/geminiService';
+import { getOutfitRecommendation, generateOutfitImageFromUrls } from './services/geminiService';
 import { WardrobeItem, ChatMessage, Outfit } from './types';
 import { defaultWardrobe } from './wardrobe';
 import Footer from './components/Footer';
 import { getFriendlyErrorMessage } from './lib/utils';
-import { urlToFile } from './lib/urlToFile';
 
 const App: React.FC = () => {
   const [modelImageUrl, setModelImageUrl] = useState<string | null>(null);
@@ -51,7 +50,6 @@ const App: React.FC = () => {
     }
   }, [wardrobe]);
 
-
   const handleModelFinalized = (url: string) => {
     setModelImageUrl(url);
     setDisplayImageUrl(url);
@@ -72,7 +70,7 @@ const App: React.FC = () => {
     setIsLoading(false);
     setLoadingMessage('');
     setError(null);
-    setWardrobe(defaultWardrobe); // This will reset the state and trigger the useEffect to update localStorage
+    setWardrobe(defaultWardrobe);
     isRequestPending.current = false;
   };
 
@@ -96,7 +94,7 @@ const App: React.FC = () => {
     setLoadingMessage('Buscando el atuendo perfecto...');
 
     try {
-      // 1. Get outfit recommendation (JSON) from Gemini
+      // 1) Obtener recomendación (JSON)
       const recommendation = await getOutfitRecommendation(wardrobe, [...currentHistory, userMessage]);
       
       const reasoningMessage: ChatMessage = {
@@ -106,8 +104,8 @@ const App: React.FC = () => {
       };
       setChatHistory(prev => [...prev, reasoningMessage]);
       setLoadingMessage('Dando vida al look...');
-      
-      // 2. Find the wardrobe items and convert their URLs to File objects
+
+      // 2) Buscar prendas en el armario (POR NOMBRE) y armar sus URLs
       const outfitItems = recommendation.outfit
         .map(itemName => wardrobe.find(item => item.name === itemName))
         .filter((item): item is WardrobeItem => !!item);
@@ -115,13 +113,11 @@ const App: React.FC = () => {
       if (outfitItems.length === 0) {
         throw new Error("Lo siento, no pude encontrar ninguna prenda en el armario que coincida con esa petición.");
       }
-      
-      const garmentFiles = await Promise.all(
-        outfitItems.map(item => urlToFile(item.url, item.name))
-      );
 
-      // 3. Generate the outfit image
-      const newImageUrl = await generateOutfitImage(modelImageUrl, garmentFiles);
+      const garmentUrls = outfitItems.map(item => item.url);
+
+      // 3) Generar imagen del outfit (enviando URLs al backend)
+      const newImageUrl = await generateOutfitImageFromUrls(modelImageUrl, garmentUrls);
       
       const outfitResult: Outfit = {
         imageUrl: newImageUrl,

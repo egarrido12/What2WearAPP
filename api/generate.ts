@@ -1,25 +1,22 @@
+import { GoogleGenAI } from '@google/genai';
+
 export default async function handler(req: any, res: any) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'Missing GEMINI_API_KEY' });
-
-  const prompt =
-    (req.method === 'POST' ? req.body?.prompt : req.query?.prompt) || '';
-
   try {
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt || 'Hola' }] }]
-        })
-      }
-    );
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: 'Missing GEMINI_API_KEY' });
 
-    const data = await r.json();
-    return res.status(r.ok ? 200 : r.status).json(data);
+    const { prompt = 'Di "pong" y nada más.' } = req.body || {};
+    const ai = new GoogleGenAI({ apiKey });
+
+    const r = await ai.models.generateContent({
+      model: 'gemini-1.5-flash', // estable para texto
+      contents: String(prompt),
+    });
+
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).json({ text: r.text?.trim?.() || '' });
   } catch (e: any) {
-    return res.status(500).json({ error: e.message });
+    console.error('GENERATE ERROR:', e?.stack || e);
+    return res.status(500).json({ error: e?.message || 'Internal error' });
   }
 }

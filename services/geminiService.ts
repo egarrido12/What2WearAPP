@@ -1,29 +1,48 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
-*/
-
+// services/geminiService.ts
 import { ChatMessage, WardrobeItem } from "../types";
 
-/**
- * Convierte un File → DataURL
- */
-const fileToDataUrl = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = (e) => reject(e);
+/* ---------- util: File -> dataURL (comprimido) ---------- */
+async function fileToCompressedDataUrl(
+  file: File,
+  maxSide = 1024,
+  quality = 0.8
+): Promise<string> {
+  const img = new Image();
+  const blobUrl = URL.createObjectURL(file);
+  img.src = blobUrl;
+  await new Promise<void>((res, rej) => {
+    img.onload = () => res();
+    img.onerror = () => rej(new Error("No se pudo cargar la imagen"));
   });
 
-/* ============================================================
-   1) generateModelImage
-   ------------------------------------------------------------
-   Antes → llamaba GoogleGenAI desde el navegador
-   Ahora → hace fetch a /api/model-image
-   ============================================================ */
+  const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(img, 0, 0, w, h);
+
+  const out = canvas.toDataURL("image/jpeg", quality);
+  URL.revokeObjectURL(blobUrl);
+  return out;
+}
+
+async function dataUrlToCompressedDataUrl(
+  dataUrl: string,
+  maxSide = 1024,
+  quality = 0.8
+): Promise<string> {
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  const file = new File([blob], "img.jpg", { type: blob.type });
+  return fileToCompressedDataUrl(file, maxSide, quality);
+}
+
+/* ---------- 1) Generar imagen de modelo ---------- */
 export const generateModelImage = async (userImage: File): Promise<string> => {
-  const userImageDataUrl = await fileToDataUrl(userImage);
+  const userImageDataUrl = await fileToCompressedDataUrl(userImage, 1024, 0.8);
 
   const resp = await fetch("/api/model-image", {
     method: "POST",
@@ -31,21 +50,12 @@ export const generateModelImage = async (userImage: File): Promise<string> => {
     body: JSON.stringify({ userImageDataUrl }),
   });
 
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(text || "Error generando modelo");
-  }
-
+  if (!resp.ok) throw new Error(await resp.text());
   const { image } = await resp.json();
-  return image; // dataUrl
+  return image; // dataURL
 };
 
-/* ============================================================
-   2) getOutfitRecommendation
-   ------------------------------------------------------------
-   Antes → GoogleGenAI directo
-   Ahora → /api/outfit
-   ============================================================ */
+/* ---------- 2) Recomendación de outfit (JSON) ---------- */
 export const getOutfitRecommendation = async (
   wardrobe: WardrobeItem[],
   chatHistory: ChatMessage[]
@@ -56,40 +66,52 @@ export const getOutfitRecommendation = async (
     body: JSON.stringify({ wardrobe, chatHistory }),
   });
 
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(text || "Error generando outfit");
-  }
-
+  if (!resp.ok) throw new Error(await resp.text());
   return resp.json();
 };
 
-/* ============================================================
-   3) generateOutfitImage
-   ------------------------------------------------------------
-   Antes → GoogleGenAI directo
-   Ahora → /api/outfit-image
-   ============================================================ */
+/* ---------- 3) Generar imagen con prendas (enviando DataURLs) ---------- */
 export const generateOutfitImage = async (
   modelImageUrl: string,
   garmentFiles: File[]
 ): Promise<string> => {
-  // Convert garments to dataURL
+  // recomprime la base y limita tamaño
+  const compactModel = await dataUrlToCompressedDataUrl(modelImageUrl, 1024, 0.8);
   const garmentDataUrls = await Promise.all(
-    garmentFiles.map((file) => fileToDataUrl(file))
+    garmentFiles.slice(0, 5).map(f => fileToCompressedDataUrl(f, 1024, 0.8))
   );
 
   const resp = await fetch("/api/outfit-image", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ modelImageDataUrl: modelImageUrl, garmentDataUrls }),
+    body: JSON.stringify({ modelImageDataUrl: compactModel, garmentDataUrls }),
   });
 
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(text || "Error generando outfit con imagen");
-  }
+  if (!resp.ok) throw new Error(await resp.text());
+  const { image } = await resp.json();
+  return image;
+};
 
+/* ---------- 4) Generar imagen con prendas (enviando URLs) ---------- */
+/** Usa este método cuando quieras evitar CORS/canvas en el cliente.
+ *  El servidor descargará las imágenes por URL.
+ */
+export const generateOutfitImageFromUrls = async (
+  modelImageUrl: string,
+  garmentUrls: string[]
+): Promise<string> => {
+  // si tu modelImageUrl es un dataURL muy grande y quieres recomprimir:
+  // const compactModel = await dataUrlToCompressedDataUrl(modelImageUrl, 1024, 0.8);
+  // En muchos casos puedes enviar directamente la URL/dataURL original:
+  const compactModel = modelImageUrl;
+
+  const resp = await fetch("/api/outfit-image", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ modelImageDataUrl: compactModel, garmentUrls }),
+  });
+
+  if (!resp.ok) throw new Error(await resp.text());
   const { image } = await resp.json();
   return image;
 };
