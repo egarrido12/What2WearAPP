@@ -1,5 +1,6 @@
-// Utilidades compartidas para Node Functions en Vercel
+// api/_utils.ts
 
+// Convierte dataURL → { inlineData }
 export function dataUrlToPart(dataUrl: string) {
   const arr = (dataUrl || '').split(',');
   if (arr.length < 2) throw new Error('Invalid data URL');
@@ -8,13 +9,13 @@ export function dataUrlToPart(dataUrl: string) {
   return { inlineData: { mimeType: mimeMatch[1], data: arr[1] } };
 }
 
-// Aprox bytes de un dataURL base64 (sin encabezado)
+// Calcula bytes aproximados del contenido base64
 export function approxBase64Bytes(dataUrl: string) {
   const base64 = (dataUrl || '').split(',')[1] || '';
-  // 4 chars base64 ≈ 3 bytes
   return Math.floor(base64.length * 0.75);
 }
 
+// Extrae imagen de respuesta Gemini
 export function handleImageResponse(resp: any): string {
   if (resp?.promptFeedback?.blockReason) {
     const { blockReason, blockReasonMessage } = resp.promptFeedback;
@@ -27,9 +28,9 @@ export function handleImageResponse(resp: any): string {
     }
   }
   const finish = resp?.candidates?.[0]?.finishReason;
-  if (finish && finish !== 'STOP') throw new Error(`Generación detenida: ${finish}`);
+  if (finish && finish !== 'STOP') {
+    throw new Error(`Generación detenida: ${finish}`);
+  }
   const text = resp?.text?.trim?.();
   throw new Error(`El modelo no devolvió imagen.${text ? ` Texto: "${text}"` : ''}`);
 }
-
-
