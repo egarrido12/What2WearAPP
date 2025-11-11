@@ -2,23 +2,56 @@
 import path from 'node:path';
 import { readFile, stat } from 'node:fs/promises';
 import { GoogleGenAI, Modality } from '@google/genai';
-// ⚠️ ESM en Vercel → usa .js en el import
+// ESM en Vercel → importa con .js
 import { dataUrlToPart, approxBase64Bytes, handleImageResponse } from './_utils.js';
 
 const MAX_BYTES = 4_500_000;
 const MAX_GARMENTS = 5;
 const ASSETS_DIR = path.join(process.cwd(), 'public', 'wardrobe-assets');
 
-// === Mapa de slugs "bonitos" → archivos que SÍ existen en tu repo ===
+// ---------- MAPEO COMPLETO: slug bonito → archivo REAL existente ----------
 const LEGACY_MAP: Record<string, string> = {
-  // Tops
+  // TOPS
+  'abstract-graphic-tee.png': 'Gemini_Generated_Image_183jpq183jpq183j.png',
   'cream-silk-blouse.png': 'Gemini_Generated_Image_1dsf9x1dsf9x1dsf.png',
-  // Outerwear
-  'navy-blazer.png': 'Gemini_Generated_Image_j84kv5j84kv5j84k.png',
-  // Bottoms
+  'blue-striped-shirt.png': 'camisa-azul-sobre-fondo-blanco-aislado_267651-1565.jpg',
+  'grey-cashmere-sweater.png': 'Gemini_Generated_Image_1ta6yy1ta6yy1ta6.png',
+  'white-linen-shirt.png': 'descarga.jpeg',
+  'black-turtleneck.png': 'Gemini_Generated_Image_2gk6iy2gk6iy2gk6.png',
+
+  // BOTTOMS
+  'classic-blue-jeans.png': 'Gemini_Generated_Image_2xsee92xsee92xse.png',
+  'taupe-pleated-skirt.png': 'Gemini_Generated_Image_996iq4996iq4996i.png',
   'black-trousers.png': 'Pantanegros.jpeg',
-  // Shoes
+  'khaki-chinos.png': 'Gemini_Generated_Image_c9xzk8c9xzk8c9xz.png',
+  'denim-shorts.png': 'Gemini_Generated_Image_dtrxmmdtrxmmdtrx.png',
+  'white-jeans.png': 'Gemini_Generated_Image_fwz7o5fwz7o5fwz7.png',
+
+  // OUTERWEAR
+  'leather-jacket.png': 'Gemini_Generated_Image_g2pk2yg2pk2yg2pk.png',
+  'beige-trench-coat.png': 'Gemini_Generated_Image_h5rqxhh5rqxhh5rq.png',
+  'blue-denim-jacket.png': 'Gemini_Generated_Image_hnwr33hnwr33hnwr.png',
+  'navy-blazer.png': 'Gemini_Generated_Image_j84kv5j84kv5j84k.png',
+  'black-puffer-vest.png': 'Gemini_Generated_Image_nyawnynyawnynyaw.png',
+
+  // DRESSES
+  'summer-floral-dress.png': 'Gemini_Generated_Image_o8lhppo8lhppo8lh.png',
+  'little-black-dress.png': 'Gemini_Generated_Image_otuqflotuqflotuq.png',
+  'boho-maxi-dress.png': 'png_Mujer_vestir.png',
+  'striped-shirt-dress.png': 'Gemini_Generated_Image_qrkehoqrkehoqrke.png',
+
+  // SHOES
+  'white-sneakers.png': 'Gemini_Generated_Image_r9e4xcr9e4xcr9e4.png',
+  'black-combat-boots.png': 'Gemini_Generated_Image_v4qdp0v4qdp0v4qd.png',
+  'brown-leather-loafers.png': 'Gemini_Generated_Image_vbr8sovbr8sovbr8.png',
+  'strappy-sandals.png': 'Gemini_Generated_Image_wvnqy1wvnqy1wvnq.png',
   'nude-heels.png': 'Gemini_Generated_Image_yb0fsxyb0fsxyb0f.png',
+
+  // ACCESSORIES
+  'leather-tote-bag.png': 'Gemini_Generated_Image_yz8p7gyz8p7gyz8p.png',
+  'aviator-sunglasses.png': 'una prenda de vestir.png',
+  'patterned-silk-scarf.png': 'Gemini_Generated_Image_996iq4996iq4996i.png',
+  'wool-fedora-hat.png': 'Gemini_Generated_Image_183jpq183jpq183j.png',
 };
 
 function guessMimeByExt(filename: string) {
@@ -35,16 +68,17 @@ async function urlToPartServer(url: string) {
 
   if (url.startsWith('/wardrobe-assets/')) {
     const baseRaw = path.basename(url);
-    const base = baseRaw.replace(/\.\.+/g, '').replace(/[^a-zA-Z0-9._-]/g, '');
-    let candidate = base;
+    const sanitized = baseRaw.replace(/\.\.+/g, '').replace(/[^a-zA-Z0-9._-]/g, '');
 
-    // Si el archivo "bonito" no existe, intenta con su mapeo real
+    // 1) intenta abrir el archivo tal cual
+    let candidate = sanitized;
     let abs = path.join(ASSETS_DIR, candidate);
     let st = await stat(abs).catch(() => null);
 
+    // 2) si no existe, intenta con el mapeo
     if (!st?.isFile()) {
-      const mapped = LEGACY_MAP[candidate];
-      if (!mapped) throw new Error(`El archivo no existe: ${url}`); // sin mapeo conocido
+      const mapped = LEGACY_MAP[sanitized];
+      if (!mapped) throw new Error(`El archivo no existe: ${url}`);
       candidate = mapped;
       abs = path.join(ASSETS_DIR, candidate);
       st = await stat(abs).catch(() => null);
